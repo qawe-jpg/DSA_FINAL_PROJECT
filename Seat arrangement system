@@ -1,0 +1,133 @@
+#include <iostream>
+#include <unordered_map>
+#include <vector>
+#include <string>
+#include <queue>
+
+struct Seat {
+    int seatID;
+    bool occupied;
+    std::string customerName;
+    int row, col;
+};
+
+struct WaitlistNode {
+    std::string customerName;
+    WaitlistNode* next;
+};
+
+struct GraphNode {
+    int tableID;
+    std::vector<std::pair<GraphNode*, int>> neighbors;
+};
+
+const int ROWS = 5;
+const int COLS = 5;
+Seat* floor[ROWS][COLS];
+std::unordered_map<int, Seat*> seatMap;
+WaitlistNode* waitlistHead = nullptr;
+std::vector<GraphNode*> tableGraph;
+
+Seat* createSeat(int id, int r, int c) {
+    Seat* s = new Seat{id, false, "", r, c};
+    floor[r][c] = s;
+    seatMap[id] = s;
+    return s;
+}
+
+void addToWaitlist(const std::string& name) {
+    WaitlistNode* node = new WaitlistNode{name, nullptr};
+    if (!waitlistHead) {
+        waitlistHead = node;
+        return;
+    }
+    WaitlistNode* temp = waitlistHead;
+    while (temp->next) temp = temp->next;
+    temp->next = node;
+}
+
+void assignSeat(int seatID, const std::string& customerName) {
+    if (seatMap.find(seatID) == seatMap.end()) return;
+    Seat* s = seatMap[seatID];
+    if (!s->occupied) {
+        s->occupied = true;
+        s->customerName = customerName;
+    } else {
+        addToWaitlist(customerName);
+    }
+}
+
+void releaseSeat(int seatID) {
+    if (seatMap.find(seatID) == seatMap.end()) return;
+    Seat* s = seatMap[seatID];
+    s->occupied = false;
+    s->customerName = "";
+    if (waitlistHead) {
+        s->occupied = true;
+        s->customerName = waitlistHead->customerName;
+        WaitlistNode* temp = waitlistHead;
+        waitlistHead = waitlistHead->next;
+        delete temp;
+    }
+}
+
+GraphNode* createGraphNode(int tableID) {
+    GraphNode* node = new GraphNode{tableID};
+    tableGraph.push_back(node);
+    return node;
+}
+
+int shortestPath(GraphNode* start, GraphNode* end) {
+    std::unordered_map<GraphNode*, int> dist;
+    std::queue<GraphNode*> q;
+    for (auto node : tableGraph) dist[node] = 1e9;
+    dist[start] = 0;
+    q.push(start);
+    while (!q.empty()) {
+        GraphNode* u = q.front(); q.pop();
+        for (auto& [v, w] : u->neighbors) {
+            if (dist[u] + w < dist[v]) {
+                dist[v] = dist[u] + w;
+                q.push(v);
+            }
+        }
+    }
+    return dist[end];
+}
+
+void displaySeats() {
+    for (int r = 0; r < ROWS; ++r) {
+        for (int c = 0; c < COLS; ++c) {
+            if (floor[r][c]->occupied)
+                std::cout << "[X]";
+            else
+                std::cout << "[O]";
+        }
+        std::cout << std::endl;
+    }
+}
+
+int main() {
+    int idCounter = 1;
+    for (int r = 0; r < ROWS; ++r)
+        for (int c = 0; c < COLS; ++c)
+            createSeat(idCounter++, r, c);
+
+    GraphNode* g1 = createGraphNode(1);
+    GraphNode* g2 = createGraphNode(2);
+    GraphNode* g3 = createGraphNode(3);
+    g1->neighbors.push_back({g2, 1});
+    g2->neighbors.push_back({g3, 1});
+    g3->neighbors.push_back({g1, 2});
+
+    assignSeat(1, "Alice");
+    assignSeat(2, "Bob");
+    assignSeat(1, "Charlie");
+    displaySeats();
+    releaseSeat(1);
+    displaySeats();
+    int d = shortestPath(g1, g3);
+    std::cout << "Shortest distance from table 1 to 3: " << d << std::endl;
+
+    return 0;
+}
